@@ -1,0 +1,6 @@
+Enron,default,LRC,val,AUC,[0.5061438657288663]
+Enron,default,LRC,test,AUC,[0.5116194346598573]
+Enron,default,LRC,val,AUC,[0.49664987056213017]
+Enron,default,LRC,test,AUC,[0.5137356693786983]
+Enron,default,LRC,val,AUC,[0.6752271019739088]
+Enron,default,LRC,test,AUC,[0.676319923502493]
