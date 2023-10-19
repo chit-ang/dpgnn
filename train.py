@@ -86,7 +86,8 @@ def DP(mechanism,graph,adj,ep1,ep2,deg):
 print('DP machine:{}'.format(FLAGS.machine))
 if FLAGS.machine=='rr':
     graphs, adjs = load_graphs_Unweighted(FLAGS.dataset)
-    graphs_n, adjs_n=load_noise_graphs_rr(graphs, adjs, epsilon_1)
+    # graphs_n, adjs_n=graphs, adjs
+    graphs_n, adjs_n=load_dpgcn(graphs, adjs, epsilon_1)
     print('epsilon_1:{}'.format(FLAGS.epsilon_1))
 else:
     graphs, adjs = load_graphs_npz(FLAGS.dataset)

@@ -12,17 +12,17 @@ FLAGS.__delattr__(keys)
 del_all_flags(tf.app.flags.FLAGS)
 
 #隐私保护设置
-flags.DEFINE_string('machine', 'deg', 'Differential privacy noise mechanism:{deg,lp,gs,rr}.')
+flags.DEFINE_string('machine', 'rr', 'Differential privacy noise mechanism:{deg,lp,gs,rr}.')
 flags.DEFINE_string('sense', 'sen', 'Sensitivity setting:{sen,deg}.')
-flags.DEFINE_float('epsilon_1', 3, 'Noise related budget') #float('inf')
+flags.DEFINE_float('epsilon_1', 4, 'Noise related budget') #float('inf')
 flags.DEFINE_float('epsilon_2', 4, 'Bernoulli distribution related budget')
 
 #训练设置
 flags.DEFINE_string('base_model', 'DG', 'Base model string')
 flags.DEFINE_string('model', 'default', 'Model string.')
-flags.DEFINE_string('dataset', 'ML-10M', 'Dataset string.')
+flags.DEFINE_string('dataset', 'UCI', 'Dataset string.')
 flags.DEFINE_integer('time_steps', 13, 'time steps to train (+1)') # Predict at next time step.
-flags.DEFINE_integer('GPU_ID', 0, 'GPU_ID')
+flags.DEFINE_integer('GPU_ID', 1, 'GPU_ID')
 flags.DEFINE_integer('epochs', 200, 'Number of epochs to train.')
 flags.DEFINE_integer('batch_size', 512, 'Batch size (# nodes)')
 flags.DEFINE_boolean('featureless', True, 'Use 1-hot instead of features')

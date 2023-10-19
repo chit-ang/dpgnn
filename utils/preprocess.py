@@ -156,10 +156,7 @@ def load_noise_graphs_lp(graph,adjs,epsilon):
         adjs_n.append(nx.adjacency_matrix(gg))
     return g,adjs_n
 
-def get_noise(noise_type, size, seed,eps):
-    delta = 1e-5
-    eps = 10
-    sensitivity = 1
+def get_noise(noise_type, size, seed, eps=10, delta=1e-5, sensitivity=2):
     np.random.seed(seed)
     if noise_type == 'laplace':
         noise = np.random.laplace(0, sensitivity/eps, size)
@@ -169,6 +166,8 @@ def get_noise(noise_type, size, seed,eps):
         noise = np.random.normal(0, stddev, size)
     else:
         raise NotImplementedError('noise {} not implemented!'.format(noise_type))
+    if size == 1:
+        print(noise)
     return noise
 
 def aug_random_walk(adj):
@@ -189,24 +188,16 @@ def load_noise(graph, adjs, ep1):
         # adj = aug_random_walk(adj)
         n_nodes = adj.shape[0]
         n_edges = (np.count_nonzero(adj))/2
-
         N = n_nodes
-
         A = sp.tril(adj, k=-1)
-        print('getting the lower triangle of adj matrix done!')
-
         if ep1!=np.inf:
             eps_1 = ep1 * 0.01
             eps_2 = ep1 - eps_1
             noise = get_noise(noise_type='laplace', size=(N, N), seed=42,eps=eps_2)
             noise *= np.tri(*noise.shape, k=-1, dtype=np.bool)
-
             A += noise
-            print(f'adding noise to the adj matrix done!')
-
             n_edges_keep = n_edges + int(
                 get_noise(noise_type='laplace', size=1, seed=42,eps=eps_1)[0])
-            print(f'edge number from {n_edges} to {n_edges_keep}')
             a_r = A.A.ravel()
             n_edges_keep=int(n_edges_keep)
 
@@ -321,6 +312,57 @@ def k_random_response(value, values, epsilon):
     x = values[np.random.randint(low=0, high=len(values))]#返回0到len(values)的任一一个数
     return x
 
+def construct_sparse_mat(indice, N):
+    cur_row = -1
+    new_indices = []
+    new_indptr = []
+
+    for i, j in tqdm(indice):
+        if i >= j:
+            continue
+
+        while i > cur_row:
+            new_indptr.append(len(new_indices))
+            cur_row += 1
+
+        new_indices.append(j)
+
+    while N > cur_row:
+        new_indptr.append(len(new_indices))
+        cur_row += 1
+
+    data = np.ones(len(new_indices), dtype=np.int64)
+    indices = np.asarray(new_indices, dtype=np.int64)
+    indptr = np.asarray(new_indptr, dtype=np.int64)
+
+    mat = sp.csr_matrix((data, indices, indptr), (N, N))
+
+    return mat + mat.T
+
+def load_rr(graph,adjs,epsilon):
+    g = []
+    adjs_n = []
+    s = 2 / (np.exp(epsilon) + 1)
+    for i in range(len(graph)):
+        adj_tmp = adjs[i].todense()
+        adj_tmp = np.array(adj_tmp)
+        N = adj_tmp.shape[0]
+        np.random.seed(42)
+        bernoulli = np.random.binomial(1, s, (N, N))
+        entry = np.asarray(list(zip(*np.where(bernoulli))))
+        dig_1 = np.random.binomial(1, 1 / 2, len(entry))
+        indice_1 = entry[np.where(dig_1 == 1)[0]]
+        indice_0 = entry[np.where(dig_1 == 0)[0]]
+        add_mat = construct_sparse_mat(indice_1, N)
+        minus_mat = construct_sparse_mat(indice_0, N)
+        adj_noisy = adj_tmp + add_mat - minus_mat
+        adj_noisy[np.where(adj_noisy== -1)[0]] = 0
+        adj_noisy[np.where(adj_noisy == 2)[0]] = 1
+        gg = nx.from_numpy_matrix(adj_noisy)
+        g.append(gg)
+        adjs_n.append(nx.adjacency_matrix(gg))
+    return g, adjs_n
+
 #随机响应
 def load_noise_graphs_rr(graph,adjs,epsilon):
     g=[]
@@ -342,6 +384,60 @@ def load_noise_graphs_rr(graph,adjs,epsilon):
         g.append (gg)
         adjs_n.append(nx.adjacency_matrix(gg))
     return g,adjs_n
+
+def load_dpgcn(graph,adjs,epsilon):
+    g=[]
+    adjs_n= []
+    for i in range(len(graph)):
+        adj_tmp = adjs[i].todense()
+        adj_tmp=np.array(adj_tmp)
+        n_nodes = adj_tmp.shape[0]
+        n_edges = int(np.sum(adj_tmp > 0)/2)
+        N = n_nodes
+        A = sp.tril(adj_tmp, k=-1)
+        print('getting the lower triangle of adj matrix done!')
+        eps_1 = epsilon * 0.01
+        eps_2 = epsilon - eps_1
+        noise = get_noise(noise_type='laplace', size=(N, N), seed=42, eps=eps_2, delta=1e-5,
+                          sensitivity=1)
+        noise *= np.tri(*noise.shape, k=-1, dtype=np.bool)
+        A += noise
+        n_edges_keep = n_edges + int(
+            get_noise(noise_type='laplace', size=1, seed=42,
+                      eps=eps_1, delta=1e-5, sensitivity=1)[0])
+        a_r = A.A.ravel()
+        n_splits = 10
+        len_h = len(a_r) // n_splits
+        ind_list = []
+        for i in tqdm(range(n_splits - 1)):
+            ind = np.argpartition(a_r[len_h * i:len_h * (i + 1)], -n_edges_keep)[-n_edges_keep:]
+            ind_list.append(ind + len_h * i)
+
+        ind = np.argpartition(a_r[len_h * (n_splits - 1):], -n_edges_keep)[-n_edges_keep:]
+        ind_list.append(ind + len_h * (n_splits - 1))
+
+        ind_subset = np.hstack(ind_list)
+        a_subset = a_r[ind_subset]
+        ind = np.argpartition(a_subset, -n_edges_keep)[-n_edges_keep:]
+
+        row_idx = []
+        col_idx = []
+        for idx in ind:
+            idx = ind_subset[idx]
+            row_idx.append(idx // N)
+            col_idx.append(idx % N)
+            assert (col_idx < row_idx)
+        data_idx = np.ones(n_edges_keep, dtype=np.int32)
+        mat = sp.csr_matrix((data_idx, (row_idx, col_idx)), shape=(N, N))
+        adj_tmp=mat+mat.T
+        adj_tmp = adj_tmp.todense()
+        adj_tmp = np.array(adj_tmp)
+        gg = nx.from_numpy_matrix(adj_tmp)
+        g.append(gg)
+        adjs_n.append(nx.adjacency_matrix(gg))
+    return g, adjs_n
+
+
 
 def load_feats(dataset_str):
     features = np.load("data/{}/{}".format(dataset_str, "features.npz"), allow_pickle=True)['feats']
