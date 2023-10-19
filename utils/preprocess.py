@@ -2,13 +2,12 @@ from __future__ import print_function
 import numpy as np
 import networkx as nx
 import scipy.sparse as sp
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from tqdm import tqdm
 import math
 import sys
 import torch
-sys.path.append(r'D:\git\LDP-DG\utils')
-from utilities import run_random_walks_n2v
+from utils.utilities import run_random_walks_n2v
 import pickle as pkl
 from scipy.stats import bernoulli
 flags = tf.app.flags
